@@ -26,6 +26,18 @@ Employment contracts use the job title without the project name, and the reporti
 
 The extension letter is configured for employee names, identity details, the original contract date, the new period and signature dates. Its general scope clauses remain unchanged. The original is retained under Templates.
 
+## Change a contract template
+
+Open **Templates & rules** and choose the contract type you want to update. Select **Download to edit**, make your wording or layout changes in Word, then save it as a `.docx`. Keep field tags such as `{{name_ar}}` and `{{name_en}}` in their correct Arabic and English positions. You can also start from a different Word template.
+
+Choose **Replace template** and select the updated file. It opens as a local draft; your active template stays in use. Open the field mapper to mark any text that should change for each employee. Select a paragraph’s exact text and choose the corresponding field. Map every repeated occurrence, including the signature names and dates. Tags in headers and footers are currently unsupported; put changing fields in the document body. Resolve unsupported tags and missing name/date mappings before activation.
+
+Choose **Preview pages** to inspect a PDF created on your computer. Check the wording, both languages, field tags, page breaks and signature space. Tick the review box, then choose **Use this template**. Each activation saves a local version. Under **Fields, preview & previous versions**, choose **Restore as draft** to check and reactivate an earlier version.
+
+Changing the active template affects future generation and reviews. Existing output files are preserved, and new generation evidence records the template fingerprint and version. Drafts, previews and version history stay inside `data`, outside Git. Accept or reject tracked changes and remove macros, embedded files and linked images in Word before importing a template.
+
+The interface uses NMO’s turquoise (`#3bc1cc`) and charcoal (`#545456`) from the approved template letterhead, with a darker teal for readable buttons and links. Changing the interface theme does not recolor contract documents.
+
 ## Review an existing contract
 
 Choose **Review a contract**. Add the offer, identity source and list, plus the existing contract under **Contract to review**. Read and confirm the expected fields, then select **Review contract**.

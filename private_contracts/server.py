@@ -24,9 +24,11 @@ from .readers import read_file,page_image,tesseract_binary,ocr_image
 from .office import office_binary,to_pdf
 from .engine import status as engine_status,start_engine,EngineError
 from .extract import extract_source,merge_candidates,apply_rules
-from .templates import registry,generate,TOKEN,NS,parse,text,prepare_template,template_requirements,validate_template
+from .templates import registry,generate,template_requirements,validate_template
+from . import __version__
 from .review import review_contract
 from .privacy import install_network_guard
+from . import template_manager
 
 TASKS={}
 TASK_LOCK=threading.Lock()
@@ -152,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authenticated():
                 return self.respond({'error':'Open Private Contracts in its own window first.'},403)
             if route=='/api/bootstrap':
-                return self.respond({'csrf':CSRF,'jobs':store.jobs(),'fields':FIELDS,'templates':{k:{**{a:b for a,b in v.items() if a not in {'path','original'}},'required_fields':sorted(template_requirements(v))} for k,v in registry().items()},'engine':engine_status(),'ocr':bool(tesseract_binary()),'pdf_export':bool(office_binary()),'rules':rules(),'version':'0.1.0'})
+                return self.respond({'csrf':CSRF,'jobs':store.jobs(),'fields':FIELDS,'templates':{k:{**{a:b for a,b in v.items() if a in {'label','sha256','placeholders','ready','version','source_name','saved_at'}},'history_count':len(v.get('history',[])),'required_fields':sorted(template_requirements(v))} for k,v in registry().items()},'engine':engine_status(),'ocr':bool(tesseract_binary()),'pdf_export':bool(office_binary()),'rules':rules(),'version':__version__})
             if route=='/api/status':
                 result=engine_status()
                 download=DATA/'download-status.json'
@@ -182,12 +184,18 @@ class Handler(BaseHTTPRequestHandler):
                         z.write(DATA/'outputs'/job['id']/name,name)
                 return self.binary(buffer.getvalue(),'application/zip','Contract package.zip')
             if route=='/api/template-editor':
-                kind=arg('kind','extension');entry=registry().get(kind,{})
-                p=Path(entry.get('path') or entry.get('original') or '')
-                if not p.is_file():raise ValueError('This template is not configured.')
-                with ZipFile(p) as z:root=parse(z.read('word/document.xml'))
-                paragraphs=[{'index':i,'text':text(n)} for i,n in enumerate(root.xpath('//w:p',namespaces=NS)) if text(n).strip()]
-                return self.respond({'kind':kind,'paragraphs':paragraphs,'tokens':[f[0] for f in FIELDS]+['execution_ar','execution_en','start_ar','start_en','end_ar','end_en','weekday_ar','weekday_en','identity_details_ar','identity_details_en']})
+                return self.respond(template_manager.describe(arg('kind'),arg('draft') or None))
+            if route=='/api/template-file':
+                kind=arg('kind');pdf=arg('format')=='pdf'
+                p=template_manager.file_path(kind,arg('draft') or None,arg('version') or None,pdf,arg('sha') or None)
+                return self.binary(p.read_bytes(),'application/pdf' if pdf else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',None if pdf else kind+' template.docx')
+            if route=='/api/template-page':
+                p=template_manager.file_path(arg('kind'),arg('draft') or None,pdf=True,expected_sha=arg('sha') or None)
+                index=int(arg('page','1'))
+                if not 1<=index<=120:raise ValueError('Template page not found.')
+                picture=p.with_name(f'page-{index:04d}.jpg')
+                if not picture.is_file():raise ValueError('Create the template preview first.')
+                return self.binary(picture.read_bytes(),'image/jpeg')
             return self.respond({'error':'Not found.'},404)
         except (ValueError,KeyError,IndexError,OSError) as exc:
             return self.respond({'error':str(exc)},400)
@@ -291,9 +299,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(run_task('Reviewing contract',review_work,job_id))
             if route=='/api/generate':
                 job=save_input_fields(store.get_job(payload['job']),payload);job_id=job['id']
+                template_entry,_=template_manager.active(job['fields']['contract_type']['value'],payload.get('template_sha'))
                 problems=validate(job['fields'],require_confirmation=True)
                 existing={i['field'] for i in problems}
-                problems.extend(i for i in validate_template(job['fields'],registry().get(job['fields']['contract_type']['value'],{}),True) if i['field'] not in existing)
+                problems.extend(i for i in validate_template(job['fields'],template_entry,True) if i['field'] not in existing)
                 errors=[p for p in problems if p['level']=='error']
                 if errors:return self.respond({'error':'Complete and confirm the required fields first.','findings':errors},400)
                 warnings=[p for p in problems if p['level']=='warning']
@@ -304,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
                     job=store.get_job(job_id)
                     job['fields']=confirmed_snapshot
                     verify_sources(job)
-                    kind=job['fields']['contract_type']['value'];entry=registry().get(kind,{})
+                    kind=job['fields']['contract_type']['value'];entry=template_entry
                     template=entry.get('path')
                     if not template or not Path(template).exists():raise ValueError('Prepare this template in Templates before generating a contract.')
                     if hashlib.sha256(Path(template).read_bytes()).hexdigest()!=entry['sha256']:raise ValueError('The template has changed outside the app. Re-import it before generation.')
@@ -318,6 +327,7 @@ class Handler(BaseHTTPRequestHandler):
                     docx=out/(stem+'.docx')
                     progress('Filling the approved Word template')
                     verification=generate(template,job['fields'],docx)
+                    verification['template']={k:v for k,v in entry.items() if k in {'label','sha256','version','source_name','saved_at'}}
                     outputs=[docx.name];pdf_error=None
                     try:
                         progress('Creating the PDF locally and checking its pages')
@@ -346,30 +356,19 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.server.shutdown,daemon=True).start()
                 return
             if route=='/api/template-save':
-                kind=payload.get('kind','extension')
-                if kind not in {'employment','service','extension'}:raise ValueError('Unsupported template kind.')
-                entries=registry();entry=entries.get(kind,{})
-                source=Path(entry.get('path') or entry.get('original') or '')
-                if not source.is_file():raise ValueError('Import the template first.')
-                from .templates import replace_range
-                with ZipFile(source) as z:infos=z.infolist();contents={i.filename:z.read(i.filename) for i in infos}
-                root=parse(contents['word/document.xml']);paragraphs=root.xpath('//w:p',namespaces=NS)
-                for mapping in payload.get('mappings',[]):
-                    index=int(mapping['paragraph']);before=str(mapping['before']);key=str(mapping['key'])
-                    permitted=FIELD_KEYS|{'execution_ar','execution_en','start_ar','start_en','end_ar','end_en','weekday_ar','weekday_en','identity_details_ar','identity_details_en'}
-                    if key not in permitted:raise ValueError('Choose a supported field.')
-                    from .templates import replace_value
-                    replace_value(paragraphs[index],before,'{{'+key+'}}')
-                contents['word/document.xml']=__import__('lxml.etree',fromlist=['etree']).tostring(root,xml_declaration=True,encoding='UTF-8',standalone=True)
-                target=DATA/'templates'/kind/'template.docx'
-                backup=target.with_suffix('.previous.docx')
-                if target.exists():__import__('shutil').copy2(target,backup)
-                target.parent.mkdir(exist_ok=True)
-                with ZipFile(target,'w') as z:
-                    for i in infos:z.writestr(i,contents[i.filename])
-                entries[kind]={'label':entry.get('label',kind.title()),'path':str(target),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'placeholders':sorted(set(TOKEN.findall(text(root)))),'ready':True}
-                (DATA/'templates/registry.json').write_text(json.dumps(entries,ensure_ascii=False,indent=2))
-                return self.respond({'ok':True})
+                return self.respond(template_manager.map_fields(payload['kind'],payload.get('draft'),payload['expected_sha'],payload.get('mappings')))
+            if route=='/api/template-import':
+                raw=base64.b64decode(payload['data'],validate=True)
+                return self.respond(template_manager.stage(payload['kind'],str(payload['name']),raw,payload['expected_sha']))
+            if route=='/api/template-activate':
+                return self.respond(template_manager.activate(payload['kind'],payload['draft'],payload['expected_sha'],payload.get('reviewed')))
+            if route=='/api/template-restore':
+                return self.respond(template_manager.restore_draft(payload['kind'],payload['version'],payload['expected_sha']))
+            if route=='/api/template-preview':
+                kind=payload['kind'];draft=payload.get('draft')
+                # Capture the path before dispatch; drafts and saved versions are immutable.
+                source=template_manager.file_path(kind,draft,expected_sha=payload.get('expected_sha'))
+                return self.respond(run_task('Creating template preview',lambda progress,cancelled:template_manager.preview(kind,draft,progress,cancelled,source)))
             return self.respond({'error':'Not found.'},404)
         except (ValueError,KeyError,IndexError,OSError) as exc:
             return self.respond({'error':str(exc)},400)

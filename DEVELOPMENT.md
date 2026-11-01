@@ -24,6 +24,8 @@ The repository does **not** include configured company templates or employee-spe
 
 The one-time importer for the original local employee references is kept under ignored `local/`, because it contains employee-specific configuration. The generic extension mapper under `tools/` expects an original template already present locally.
 
+Word templates can now be configured from **Templates & rules** without a source-code edit. Replacements and mappings are drafts until the user reviews and activates them. `template_manager.py` writes immutable local versions and atomically updates the registry. Capture the active template before dispatching generation, and retain its fingerprint in output evidence. Do not modify version files in place or return local filesystem paths in public API metadata.
+
 ## Run checks
 
 ```sh
@@ -41,6 +43,8 @@ Model and PDF acceptance checks are optional, local integration checks:
 ```
 
 Browser acceptance scripts additionally require Playwright, Node.js and a local Chrome installation. They run against the app at `http://127.0.0.1:8768`, use fictional records and write ignored local screenshots/results. The automated final-check helper can restart the local test app and archive fictional workspaces; use it in a development workspace rather than during active employee work.
+
+Run `.venv/bin/python tools/template_checks.py` to check template replacement, mapping, page-image previews, activation, restoration, generation and review in a separate temporary workspace. It chooses a free local port and uses fictional templates, without changing the configured app or its private templates. `CONTRACTS_BROWSER` can select a local Chromium executable for this browser check.
 
 To build the Mac application locally:
 

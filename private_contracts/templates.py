@@ -238,5 +238,8 @@ def registry():
     for kind,entry in entries.items():
         for key,filename in [('path','template.docx'),('original','original.docx')]:
             local=DATA/'templates'/kind/filename
-            if key in entry and local.exists():entry[key]=str(local)
+            if key in entry:
+                saved=Path(entry[key])
+                if not saved.is_absolute():entry[key]=str(DATA/saved)
+                elif not entry.get('version') and local.exists():entry[key]=str(local)
     return entries

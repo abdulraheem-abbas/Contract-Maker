@@ -26,6 +26,27 @@ def find_value(source,key,value):
                 found.append(page['number']);break
     return found
 
+def known_layout(template_path, kind):
+    """Use legacy slot checks only when the reference still has those bindings."""
+    if not template_path or kind not in {'employment','service'}:
+        return False
+    try:
+        with ZipFile(template_path) as z:root=parse(z.read('word/document.xml'))
+        slots=[]
+        for col,lang in ([(0,'en'),(1,'ar')] if kind=='employment' else [(0,'ar'),(1,'en')]):
+            identity=(0,col,8 if lang=='ar' and kind=='employment' else 4 if kind=='employment' else 3)
+            slots.extend([(identity,'name_'+lang),(identity,'identity_details_'+lang),((0,col,1),'execution_'+lang),((0,col,1),'weekday_'+lang),((1,col,1),'start_'+lang),((1,col,1),'end_'+lang)])
+            if kind=='employment':
+                slots.extend([((2,col,1),'job_title_'+lang),((2,col,2),'manager_title_'+lang),((4,col,1),'workplace_'+lang),((7,col,4 if lang=='ar' else 2),'salary_usd'),((3,col,0),'grade_'+lang),((21,col,5),'name_'+lang)])
+                slots.extend([((21,col,i),'execution_'+lang) for i in [2,7]])
+            else:
+                title=(2,col,2 if lang=='ar' else 3);manager=(2,col,3 if lang=='ar' else 4)
+                slots.extend([(title,'job_title_'+lang),(title,'project_'+lang),(manager,'manager_title_'+lang),(manager,'manager_name_'+lang),((2,col,1),'workplace_'+lang),((4,col,1),'salary_usd'),((8,col,6 if lang=='ar' else 5),'name_'+lang)])
+                slots.extend([((8,col,i),'execution_'+lang) for i in ([5,8] if lang=='ar' else [3,6])])
+        return all('{{'+key+'}}' in text(paragraph_at(root,slot)) for slot,key in slots)
+    except (IndexError,AttributeError):
+        return False
+
 def review_contract(job,source,template_path=None):
     fields=job['fields'];findings=[]
     kind=fields.get('contract_type',{}).get('value','employment')
@@ -85,14 +106,17 @@ def review_contract(job,source,template_path=None):
     if source['path'].lower().endswith('.docx'):
         with ZipFile(source['path']) as z:document=parse(z.read('word/document.xml'))
         rows=document.findall('w:body/w:tbl/w:tr',NS)
-        if kind in {'employment','service'} and len(rows) in {9,22}:
+        if known_layout(template_path,kind) and len(rows) in {9,22}:
             actual_kind='service' if len(rows)==9 else 'employment'
             if actual_kind!=kind:
                 findings.append({'level':'error','field':'contract_type','page':1,'message':'The contract uses the other template type.'})
             def check_slot(key,slot,location,expected=None):
                 value=expected if expected is not None else fields.get(key,{}).get('value','')
                 if not value:return
-                body=text(paragraph_at(document,slot))
+                try:body=text(paragraph_at(document,slot))
+                except (IndexError,AttributeError):
+                    findings.append({'level':'warning','field':'layout','page':None,'location':location,'message':'The Word structure changed at '+location+'. Check this paragraph visually.'})
+                    return
                 if not any(v in compact(body) for v in variations(key,value)):
                     findings.append({'level':'error','field':key,'page':None,'location':location,'message':f'{LABELS.get(key,key)} differs in {location}.','expected':value})
             for col,lang in ([(0,'en'),(1,'ar')] if actual_kind=='employment' else [(0,'ar'),(1,'en')]):
@@ -137,10 +161,19 @@ def review_contract(job,source,template_path=None):
             template_paragraphs=tr.xpath('//w:p',namespaces=NS)
             actual_paragraphs=document.xpath('//w:p',namespaces=NS)
             if len(template_paragraphs)==len(actual_paragraphs):
+                values=render_values(fields)
                 for index,(before,after) in enumerate(zip(template_paragraphs,actual_paragraphs)):
-                    pattern='^'+'.*?'.join(re.escape(compact(s)) for s in TOKEN.split(text(before))[::2])+'$' if TOKEN.search(text(before)) else '^'+re.escape(compact(text(before)))+'$'
-                    if not re.fullmatch(pattern,compact(text(after)),flags=re.S):
+                    parts=TOKEN.split(text(before))
+                    pattern='^'+'(.*?)'.join(re.escape(compact(s)) for s in parts[::2])+'$'
+                    match=re.fullmatch(pattern,compact(text(after)),flags=re.S)
+                    if not match:
                         findings.append({'level':'warning','field':'clauses','page':None,'location':f'Word paragraph {index+1}','message':f'Fixed wording differs in Word paragraph {index+1}. Compare this paragraph with the approved template.'})
+                    elif len(parts)>1:
+                        for key,actual_value in zip(parts[1::2],match.groups()):
+                            expected_value=values.get(key)
+                            if expected_value is not None and compact(expected_value)!=actual_value:
+                                field={'salary_words_ar':'salary_usd','salary_words_en':'salary_usd','identity_details_ar':'identity_number','identity_details_en':'identity_number'}.get(key,key)
+                                findings.append({'level':'error','field':field,'page':None,'location':f'Word paragraph {index+1} · {key}','message':f'The {key} field differs in Word paragraph {index+1}. Check this occurrence against its source.','expected':expected_value})
             else:
                 findings.append({'level':'warning','field':'layout','page':None,'message':'The paragraph structure differs from the approved template. Check inserted or deleted clauses and page breaks.'})
         with ZipFile(template_path) as reference,ZipFile(source['path']) as actual_package:

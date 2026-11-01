@@ -8,6 +8,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from private_contracts.config import ROOT,DATA,initialize,ENGINE_URL
 from private_contracts.engine import start_engine,stop_owned_engine,status
 from private_contracts.templates import registry
+from private_contracts import __version__
 initialize()
 results=ROOT/'test-results';results.mkdir(exist_ok=True)
 def run_tool(name):
@@ -82,7 +83,7 @@ for model in ['qwen3-vl:2b','qwen3-vl:4b']:
     except Exception:pass
 stop_owned_engine();start_engine(wait=30)
 launch()
-report={'version':'0.1.0','date':time.strftime('%Y-%m-%d'),'mac_app':'built and tested','templates':list(registry()),'local_ai':'tested with fictional offer and passport image','privacy':json.loads((results/'privacy-check.json').read_text()),'browser':json.loads((results/'browser-smoke.json').read_text())['browser_errors'],'test_fixtures_archived':fictional,'url':base,'model':status()['model'],'manual_confirmation_required':True}
+report={'version':__version__,'date':time.strftime('%Y-%m-%d'),'mac_app':'built and tested','templates':list(registry()),'local_ai':'tested with fictional offer and passport image','privacy':json.loads((results/'privacy-check.json').read_text()),'browser':json.loads((results/'browser-smoke.json').read_text())['browser_errors'],'test_fixtures_archived':fictional,'url':base,'model':status()['model'],'manual_confirmation_required':True}
 (results/'acceptance.json').write_text(json.dumps(report,indent=2))
 subprocess.run(['/usr/bin/open',str(ROOT/'Private Contracts.app')],check=True)
 print(json.dumps(report),flush=True)
