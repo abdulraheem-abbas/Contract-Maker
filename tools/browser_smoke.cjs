@@ -1,0 +1,38 @@
+const {chromium}=require('./browser_runtime.cjs');
+const fs=require('fs');const path=require('path');
+const root=path.resolve(__dirname,'..');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ const remote=[];const errors=[];
+ await context.route('**/*',route=>{const url=route.request().url();if(!url.startsWith('http://127.0.0.1:8768/')&&!url.startsWith('data:')){remote.push(url);return route.abort();}return route.continue();});
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8768/');
+ await page.waitForFunction(()=>document.querySelector('#engine-pill').textContent!=='Checking local AI…');
+ fs.mkdirSync(path.join(root,'test-results'),{recursive:true});
+ await page.screenshot({path:path.join(root,'test-results/home.png'),fullPage:true});
+ await page.locator('[data-new="create"]').click();
+ await page.locator('#new-kind').selectOption('employment');
+ await page.locator('#new-form button[type="submit"]').click();
+ await page.locator('#job-view').waitFor({state:'visible'});
+ await page.locator('[data-add-role="offer"]').click({noWaitAfter:true});
+ await page.locator('#file-picker').setInputFiles({name:'Dummy job offer.txt',mimeType:'text/plain',buffer:Buffer.from('DEMONSTRATION ONLY\nOffer date: 1 October 2026\nContract: Employment\nStart: 1 October 2026\nEnd: 31 December 2026\nRole: Education Assistant\nGross monthly salary: USD 825.69\nEmployee: Test Employee\n')});
+ await page.locator('.source-file').filter({hasText:'Dummy job offer.txt'}).waitFor({timeout:120000});
+ await page.locator('.tab[data-tab="details"]').click();
+ const values={name_ar:'موظف تجريبي غير حقيقي',name_en:'Test Employee Example',gender:'male',identity_type:'national_id',identity_number:'0001-0023-0045',identity_issue_date:'2024-01-15',identity_expiry_date:'2030-01-15',issuer_ar:'عدن',issuer_en:'Aden',execution_date:'2026-10-01',start_date:'2026-10-01',end_date:'2026-12-31',job_title_ar:'مساعد تعليم',job_title_en:'Education Assistant',grade_ar:'مستوى المساعدين',grade_en:'Assistants level',workplace_ar:'عدن',workplace_en:'Aden',salary_usd:'825.69',manager_title_ar:'ضابط التعليم',manager_title_en:'Education Officer'};
+ for(const [key,value] of Object.entries(values)){const el=page.locator('#field-'+key);if(['gender','identity_type'].includes(key))await el.selectOption(value);else await el.fill(value);}
+ await page.locator('#confirm-visible').click();
+ await page.locator('#save-job').click();
+ await page.waitForTimeout(1200);
+ await page.screenshot({path:path.join(root,'test-results/details.png'),fullPage:true});
+ await page.locator('#main-action').click();
+ await page.locator('#outputs-panel').waitFor({state:'visible',timeout:120000});
+ await page.locator('.output-card').filter({hasText:'.pdf'}).waitFor({timeout:120000});
+ await page.screenshot({path:path.join(root,'test-results/outputs.png'),fullPage:true});
+ const data=await page.evaluate(async()=>{const b=await (await fetch('/api/bootstrap')).json();const job=await (await fetch('/api/job?id='+b.jobs[0].id)).json();return {id:job.id,outputs:job.outputs,verification:{...job.last_generation,confirmed_fields:undefined,sources:undefined}};});
+ await page.setViewportSize({width:390,height:844});await page.locator('#back-workspace').click();await page.waitForTimeout(500);await page.screenshot({path:path.join(root,'test-results/mobile.png'),fullPage:true});
+ const result={browser_errors:errors,external_requests:remote,created_job:data.id,outputs:data.outputs,verification:data.verification};
+ fs.writeFileSync(path.join(root,'test-results/browser-smoke.json'),JSON.stringify(result,null,2));
+ console.log(JSON.stringify(result));
+ await browser.close();if(errors.length||remote.length)process.exitCode=1;
+})().catch(e=>{console.error(e);process.exit(1);});

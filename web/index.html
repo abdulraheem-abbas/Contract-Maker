@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Private Contracts</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a href="#workspace" class="brand"><img src="/icon.svg" width="42" height="42" alt=""><span>Private<br><strong>Contracts</strong></span></a>
+    <div class="workspace-label">NMO WORKSPACE</div>
+    <nav aria-label="Main navigation">
+      <button class="nav active" data-nav="workspace"><span class="nav-icon">▦</span>My workspace</button>
+      <button class="nav" data-nav="templates"><span class="nav-icon">▤</span>Templates &amp; rules</button>
+      <button class="nav" data-nav="setup"><span class="nav-icon">◉</span>Local setup</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="privacy-icon">⌁</div><strong>On your computer</strong><p>Documents, rules and history<br>stay in your local workspace.</p><button class="button small ghost" id="quit-app">Quit app</button><br><span class="version">PRIVATE CONTRACTS · 0.1</span></div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar"><span id="breadcrumb">My workspace</span><div class="topbar-right"><span class="privacy-badge"><i></i>Local processing</span><button class="engine-badge" id="engine-pill" data-nav="setup">Checking local AI…</button></div></header>
+    <main>
+      <div class="task-banner hidden" id="task-banner" role="status"><span class="spinner"></span><div><strong id="task-title">Working locally</strong><p id="task-message"></p></div><button class="button small ghost" id="cancel-task">Stop after this page</button></div>
+      <section id="workspace-view" class="view">
+        <div class="page-heading"><div><div class="eyebrow" id="today">YOUR PRIVATE WORKSPACE</div><h1>Prepare and review<br>your contracts.</h1><p class="lead">Your approved templates. Your source documents.<br>A clear record of every field you confirm.</p></div><div class="hero-mark" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span class="paper-line long"></span><span class="paper-line"></span><span class="paper-line short"></span><div class="paper-divider"></div><span class="paper-line"></span><span class="paper-line long"></span><div class="paper-check">✓</div></div></div></div>
+        <div class="action-grid">
+          <button class="action-card" data-new="create"><span class="action-symbol">＋</span><span class="action-body"><strong>Create a contract</strong><span>Fill an approved template using an offer,<br>an identity document and your employee list.</span><b>Start a new contract <span>↗</span></b></span></button>
+          <button class="action-card" data-new="review"><span class="action-symbol pale">✓</span><span class="action-body"><strong>Review a contract</strong><span>Compare an existing contract with its sources.<br>See findings by field and page.</span><b>Start a review <span>↗</span></b></span></button>
+        </div>
+        <div class="section-heading"><h2>Recent work</h2><span id="work-count" class="subtle">Saved on this computer</span></div>
+        <div id="job-list" class="job-list"><div class="empty-state"><span>▤</span><h3>Your workspace is ready</h3><p>Start a contract or review above. Your work will be saved here.</p></div></div>
+        <div class="workflow-note"><span>01</span><p>Add source documents</p><i>→</i><span>02</span><p>Check and confirm fields</p><i>→</i><span>03</span><p>Review pages and export</p></div>
+      </section>
+      <section id="job-view" class="view hidden">
+        <button class="back-link" id="back-workspace">← Back to workspace</button>
+        <div class="job-heading"><div><div id="job-kind" class="eyebrow">EMPLOYMENT CONTRACT</div><h1 id="job-title">New contract</h1><p class="subtle" id="saved-status">Changes are saved locally.</p></div><div class="heading-buttons"><button class="button secondary" id="save-job">Save work</button><button class="button primary" id="main-action">Create Word &amp; PDF <span>↗</span></button></div></div>
+        <div class="tabs" role="tablist"><button class="tab active" data-tab="documents">01 <span>Documents</span><b id="source-count">0</b></button><button class="tab" data-tab="details">02 <span>Confirm details</span><b id="confirmed-count">0</b></button><button class="tab" data-tab="findings">03 <span>Findings</span><b id="finding-count">0</b></button><button class="tab" data-tab="outputs">04 <span>Your files</span><b id="output-count">0</b></button></div>
+        <div id="documents-panel" class="tab-panel">
+          <div class="panel-heading"><div><h2>Add the documents for this person</h2><p>Files are copied into this app’s local folder. Originals stay unchanged.</p></div><button class="button primary read-ai">Read with local AI <span>✧</span></button></div>
+          <div class="source-grid" id="source-cards"></div>
+          <div class="matching-card"><div><h3>Match the right employee</h3><p>Use the name as it appears in the list, or enter the exact ODS row number.</p></div><label>Employee name in the list<input id="employee-hint" placeholder="e.g. Sample Employee" autocomplete="off"></label><label>List row <span class="optional">optional</span><input id="list-row" placeholder="e.g. 6" inputmode="numeric" autocomplete="off"></label></div>
+          <div class="info-line"><span>ⓘ</span><p>No offer or ID available? Enter the agreed details in <button class="inline-link" data-tab="details">Confirm details</button> and use the previous contract as your identity source when appropriate.</p></div>
+        </div>
+        <div id="details-panel" class="tab-panel hidden">
+          <div class="panel-heading"><div><h2>Check every field against its source</h2><p>AI suggestions stay unconfirmed until you check them.</p></div><div class="heading-buttons"><button class="button secondary" id="confirm-visible">Confirm filled fields</button><button class="button primary read-ai">Read with local AI <span>✧</span></button></div></div>
+          <div class="details-layout"><div id="fields-form" class="fields-form"></div><aside class="source-viewer" id="source-viewer"><div class="viewer-heading"><strong>Source evidence</strong><select id="viewer-source" aria-label="Source document"></select></div><div class="viewer-controls"><button id="prev-page" aria-label="Previous page">←</button><span id="page-number">Page 1</span><button id="next-page" aria-label="Next page">→</button></div><div id="evidence-quote" class="evidence-quote hidden"></div><div class="viewer-content" id="viewer-content"><div class="viewer-empty">Select a field’s source to inspect<br>the original page here.</div></div></aside></div>
+        </div>
+        <div id="findings-panel" class="tab-panel hidden"><div class="panel-heading"><div><h2>Review findings</h2><p>Check flagged values, then inspect the document’s pages before using it.</p></div><button class="button secondary" id="check-fields">Run field checks</button></div><div id="findings-summary" class="findings-summary"></div><div id="findings-list"></div></div>
+        <div id="outputs-panel" class="tab-panel hidden"><div class="panel-heading"><div><h2>Your files</h2><p>Word, PDF and evidence files are saved locally, with a new revision each time.</p></div><a id="bundle-link" class="button primary hidden" href="#">Download package ↓</a></div><div id="outputs-list"></div><div id="visual-review-note" class="info-line hidden"><span>ⓘ</span><p>Open the PDF and inspect Arabic and English text, page breaks and signatures. Automated field checks do not replace a final visual review.</p></div></div>
+      </section>
+      <section id="templates-view" class="view hidden"><div class="page-heading compact"><div><div class="eyebrow">YOUR DOCUMENT STANDARDS</div><h1>Templates &amp; rules</h1><p class="lead">Approved wording stays in the template.<br>Only designated fields are filled.</p></div></div><div id="templates-list" class="template-grid"></div><div class="section-heading"><h2>Your saved contract rules</h2><span class="subtle">Applied in both languages</span></div><div class="rules-grid"><article class="rule"><span>01</span><h3>Employment contracts</h3><p>Job title without the project name. Reporting manager’s title without their personal name.</p></article><article class="rule"><span>02</span><h3>Service contracts</h3><p>Keep the project and manager details. Retain the original clauses and signature areas.</p></article><article class="rule"><span>03</span><h3>Identity and formatting</h3><p>Issuing city only. Keep leading zeros. Bold filled fields. Keep Arabic right to left and English left to right.</p></article></div><div class="section-heading"><h2>Specific job-title instructions</h2></div><div id="override-list" class="override-list"></div><div id="template-editor" class="hidden"></div></section>
+      <section id="setup-view" class="view hidden"><div class="page-heading compact"><div><div class="eyebrow">THIS COMPUTER</div><h1>Local setup</h1><p class="lead">Your documents are processed here.<br>No cloud model or online OCR is used.</p></div></div><div id="setup-cards" class="setup-grid"></div><div class="privacy-detail"><h2>What stays local</h2><p>Documents, extracted text, page previews, confirmed fields, contract history and outputs are stored in this app’s data folder. The application refuses external network requests. The AI engine uses a dedicated local address and has cloud features disabled.</p><p>Model downloads are a separate one-time setup step. Keep the app’s data folder outside iCloud, OneDrive, Dropbox and other synced folders. Local storage is protected by your computer account; the database is not independently encrypted.</p></div></section>
+    </main>
+    <footer>PRIVATE CONTRACTS <span>Arabic &amp; English · Local workspace</span></footer>
+  </div>
+  <dialog id="new-dialog"><form id="new-form"><button type="button" class="close-dialog" aria-label="Close">×</button><span class="eyebrow" id="new-mode-label">NEW CONTRACT</span><h2>Start with the right template.</h2><p>You can add source documents or enter confirmed details manually.</p><label>Contract type<select id="new-kind"><option value="employment">Employment contract · عقد عمل</option><option value="service">Service contract · عقد خدمة</option><option value="extension">Extension letter · خطاب تمديد</option></select></label><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Cancel</button><button type="submit" class="button primary">Continue →</button></div></form></dialog>
+  <dialog id="warning-dialog"><div class="dialog-inner"><button type="button" class="close-dialog" aria-label="Close">×</button><span class="eyebrow">CHECK BEFORE CREATING</span><h2>These details need your decision.</h2><div id="warning-content"></div><label class="acknowledge"><input id="acknowledge-warnings" type="checkbox">I checked these points and want to use the confirmed details as entered.</label><div class="dialog-actions"><button type="button" class="button secondary close-dialog">Go back</button><button id="create-confirmed" type="button" class="button primary" disabled>Create contract</button></div></div></dialog>
+  <input id="file-picker" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.ods,.xlsx,.csv,.txt" class="hidden">
+  <div id="toast" class="toast hidden" role="alert"></div>
+</body>
+</html>
